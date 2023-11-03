@@ -6,15 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"github.com/saffrondigits/apis/auth"
+	"github.com/saffrondigits/apis/modules"
 )
-
-type User struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	UserName  string `json:"username"`
-	Password  string `json:"password"`
-}
 
 func connectToDatabase() (*sql.DB, error) {
 	db, err := sql.Open("postgres", "postgres://root:abcd@localhost:1234/goclass?sslmode=disable")
@@ -37,6 +31,7 @@ func main() {
 
 	r.GET("/ping", ping)
 	r.POST("/register", registerUser)
+	r.POST("/login", loginUser)
 
 	err := r.Run("127.0.0.1:8080")
 	if err != nil {
@@ -44,8 +39,52 @@ func main() {
 	}
 }
 
+func loginUser(c *gin.Context) {
+	var loginUser modules.LoginUser
+
+	err := c.BindJSON(&loginUser)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "json data is not correct"})
+		return
+	}
+
+	// Connect to the database
+	sql, err := connectToDatabase()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "database error"})
+		return
+	}
+
+	// Check if the username already exist in the db
+	dbUser := modules.LoginUser{}
+	err = sql.QueryRow("SELECT username,password FROM users where username=$1", loginUser.UserName).Scan(&dbUser.UserName, &dbUser.Password)
+	if err != nil {
+		log.Printf("username doesn't exist")
+		c.JSON(400, gin.H{"error": "username doesn't  exist"})
+		return
+	}
+
+	// Check if password matches
+	if dbUser.Password != loginUser.Password {
+		log.Printf("username password doesn't match")
+		c.JSON(400, gin.H{"error": "username password doesn't match"})
+		return
+	}
+
+	// Generate a token and return
+	token, err := auth.CreateToken(loginUser.UserName)
+	if err != nil {
+		log.Printf("cannot create a token")
+		c.JSON(500, gin.H{"error": "cannot create a token"})
+		return
+	}
+
+	// Return a session data
+	c.JSON(200, gin.H{"token": token})
+}
+
 func registerUser(c *gin.Context) {
-	var user User
+	var user modules.User
 
 	err := c.BindJSON(&user)
 	if err != nil {
@@ -61,7 +100,7 @@ func registerUser(c *gin.Context) {
 	}
 
 	// Check if the email already exist in the db
-	dbUser := User{}
+	dbUser := modules.User{}
 	err = sql.QueryRow("SELECT first_name,last_name FROM users where email=$1", user.Email).Scan(&dbUser.FirstName, &dbUser.LastName)
 	if err == nil {
 		log.Printf("email already exist")
