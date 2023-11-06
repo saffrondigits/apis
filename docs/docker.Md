@@ -16,8 +16,12 @@ EXPOSE 8080
 # Start your application when the container starts
 CMD ["./main"]
 
-
+```
 docker build -t your-app-name .
+```
 
 
+
+```
 docker run -d -p 8080:8080 your-app-name
+```

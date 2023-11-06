@@ -22,3 +22,16 @@ func CreateToken(username string) (string, error) {
 
 	return tokenString, nil
 }
+
+func AuthenticateToken(tokenString string) (string, error) {
+	// Parse the token
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return secretKey, nil
+	})
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return claims["username"].(string), nil
+	} else {
+		return "", err
+	}
+}

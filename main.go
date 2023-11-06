@@ -2,7 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -32,8 +34,9 @@ func main() {
 	r.GET("/ping", ping)
 	r.POST("/register", registerUser)
 	r.POST("/login", loginUser)
+	r.POST("/create", Create)
 
-	err := r.Run("127.0.0.1:8080")
+	err := r.Run("0.0.0.0:8080")
 	if err != nil {
 		log.Println("cannot start the server!")
 	}
@@ -131,4 +134,42 @@ func ping(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"message": "pong",
 	})
+}
+
+func Create(c *gin.Context) {
+	token := c.GetHeader("Authorization")
+
+	if token == "" {
+		c.JSON(401, gin.H{"error": "Authorization header missing"})
+		return
+	}
+
+	username, err := auth.AuthenticateToken(token)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	// Get the users tweet and parse to the Struct
+	var tweet modules.Tweet
+
+	err = c.BindJSON(&tweet)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "json data is not correct"})
+		return
+	}
+
+	tweet.UserName = username
+	tweet.CreateTime = time.Now()
+
+	// TODO: Add the tweets in the database
+
+	bx, err := json.Marshal(tweet)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "cannot marshal"})
+		return
+	}
+
+	c.JSON(200, gin.H{"data": string(bx)})
+
 }
