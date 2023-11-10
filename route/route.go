@@ -3,7 +3,6 @@ package route
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -41,27 +40,28 @@ func Route(handler *handler) *gin.Engine {
 	return r
 }
 
-func (handler *handler) loginUser(c *gin.Context) {
+func (h *handler) loginUser(c *gin.Context) {
 	var loginUser models.LoginUser
 
 	err := c.BindJSON(&loginUser)
 	if err != nil {
+		h.logger.Errorf("cannot bind json data into struct: %v", err)
 		c.JSON(400, gin.H{"error": "json data is not correct"})
 		return
 	}
 
 	// Check if the username already exist in the db
 	dbUser := models.LoginUser{}
-	err = handler.sql.QueryRow("SELECT username,password FROM users where username=$1", loginUser.UserName).Scan(&dbUser.UserName, &dbUser.Password)
+	err = h.sql.QueryRow("SELECT username,password FROM users where username=$1", loginUser.UserName).Scan(&dbUser.UserName, &dbUser.Password)
 	if err != nil {
-		log.Printf("username doesn't exist")
+		h.logger.Errorf("username doesn't exist: %v", err)
 		c.JSON(400, gin.H{"error": "username doesn't  exist"})
 		return
 	}
 
 	// Check if password matches
 	if dbUser.Password != loginUser.Password {
-		log.Printf("username password doesn't match")
+		h.logger.Error("username password doesn't match")
 		c.JSON(400, gin.H{"error": "username password doesn't match"})
 		return
 	}
@@ -69,7 +69,7 @@ func (handler *handler) loginUser(c *gin.Context) {
 	// Generate a token and return
 	token, err := auth.CreateToken(loginUser.UserName)
 	if err != nil {
-		log.Printf("cannot create a token")
+		h.logger.Error("cannot create a token")
 		c.JSON(500, gin.H{"error": "cannot create a token"})
 		return
 	}
@@ -83,6 +83,7 @@ func (handler *handler) registerUser(c *gin.Context) {
 
 	err := c.BindJSON(&user)
 	if err != nil {
+		handler.logger.Errorf("cannot bind json data into struct: %v", err)
 		c.JSON(400, gin.H{"error": "json data is not correct"})
 		return
 	}
@@ -91,7 +92,7 @@ func (handler *handler) registerUser(c *gin.Context) {
 	dbUser := models.User{}
 	err = handler.sql.QueryRow("SELECT first_name,last_name FROM users where email=$1", user.Email).Scan(&dbUser.FirstName, &dbUser.LastName)
 	if err == nil {
-		log.Printf("email already exist")
+		handler.logger.Errorf("email already exist")
 		c.JSON(500, gin.H{"error": "email already exist"})
 		return
 	}
@@ -99,7 +100,7 @@ func (handler *handler) registerUser(c *gin.Context) {
 	// Check if the username already exist in the db
 	err = handler.sql.QueryRow("SELECT first_name,last_name FROM users where username=$1", user.UserName).Scan(&dbUser.FirstName, &dbUser.LastName)
 	if err == nil {
-		log.Printf("username already exist")
+		handler.logger.Errorf("username already exist: %v", err)
 		c.JSON(500, gin.H{"error": "username already exist"})
 		return
 	}
@@ -107,7 +108,7 @@ func (handler *handler) registerUser(c *gin.Context) {
 	// Store the data into the database
 	_, err = handler.sql.Query("INSERT INTO users (first_name,last_name, email, username, password) VALUES($1,$2,$3,$4,$5)", user.FirstName, user.LastName, user.Email, user.UserName, user.Password)
 	if err != nil {
-		log.Printf("cannot insert the value to the database: %+v", err)
+		handler.logger.Errorf("cannot insert the value to the database: %+v", err)
 		c.JSON(500, gin.H{"error": "failed to register"})
 		return
 	}
