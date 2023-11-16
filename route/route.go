@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/saffrondigits/apis/auth"
+	"github.com/saffrondigits/apis/middleware"
 	"github.com/saffrondigits/apis/models"
 	"github.com/sirupsen/logrus"
 )
@@ -31,7 +32,7 @@ func Route(handler *handler) *gin.Engine {
 	r.POST("/register", handler.registerUser)
 	r.POST("/login", handler.loginUser)
 
-	r.POST("/create", handler.Create)
+	r.POST("/create", middleware.AuthMiddleware(), handler.Create)
 	r.PUT("/update", handler.Update)
 	r.GET("/tweet/{id}", handler.GetById)
 	r.GET("/tweets", handler.GetAllTweets)
@@ -59,8 +60,10 @@ func (h *handler) loginUser(c *gin.Context) {
 		return
 	}
 
+	matched := auth.CheckPasswordHash(loginUser.Password, dbUser.Password)
+
 	// Check if password matches
-	if dbUser.Password != loginUser.Password {
+	if matched != true {
 		h.logger.Error("username password doesn't match")
 		c.JSON(400, gin.H{"error": "username password doesn't match"})
 		return
@@ -105,6 +108,13 @@ func (handler *handler) registerUser(c *gin.Context) {
 		return
 	}
 
+	user.Password, err = auth.HashPassword(user.Password)
+	if err != nil {
+		handler.logger.Errorf("cannot bcrypt the password: %+v", err)
+		c.JSON(500, gin.H{"error": "failed to register"})
+		return
+	}
+
 	// Store the data into the database
 	_, err = handler.sql.Query("INSERT INTO users (first_name,last_name, email, username, password) VALUES($1,$2,$3,$4,$5)", user.FirstName, user.LastName, user.Email, user.UserName, user.Password)
 	if err != nil {
@@ -123,29 +133,23 @@ func (handler *handler) ping(c *gin.Context) {
 }
 
 func (handler *handler) Create(c *gin.Context) {
-	token := c.GetHeader("Authorization")
-
-	if token == "" {
-		c.JSON(401, gin.H{"error": "Authorization header missing"})
-		return
-	}
-
-	username, err := auth.AuthenticateToken(token)
-	if err != nil {
-		c.JSON(401, gin.H{"error": "Invalid or expired token"})
-		return
-	}
 
 	// Get the users tweet and parse to the Struct
 	var tweet models.Tweet
 
-	err = c.BindJSON(&tweet)
+	err := c.BindJSON(&tweet)
 	if err != nil {
 		c.JSON(400, gin.H{"error": "json data is not correct"})
 		return
 	}
 
-	tweet.UserName = username
+	userName, exist := c.Get("username")
+	if !exist {
+		c.JSON(500, gin.H{"error": "couldn't retrieve username"})
+		return
+	}
+
+	tweet.UserName = userName.(string)
 	tweet.CreateTime = time.Now()
 
 	// TODO: Add the tweets in the database
