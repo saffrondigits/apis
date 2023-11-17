@@ -20,3 +20,15 @@ type Tweet struct {
 	Tweet      string    `json:"tweet"`
 	CreateTime time.Time `json:"create_time"`
 }
+
+type GetAllTweets struct {
+	GetTweet []GetTweet `json:"tweets"`
+}
+
+type GetTweet struct {
+	Id           int64  `json:"id"`
+	Tweet        string `json:"tweet"`
+	CreatedAt    string `json:"created_at"`
+	LikeCount    int64  `json:"like_count"`
+	RetweetCount int64  `json:"retweet_count"`
+}

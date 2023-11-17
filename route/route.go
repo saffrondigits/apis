@@ -35,7 +35,7 @@ func Route(handler *handler) *gin.Engine {
 	r.POST("/create", middleware.AuthMiddleware(), handler.Create)
 	r.PUT("/update", handler.Update)
 	r.GET("/tweet/{id}", handler.GetById)
-	r.GET("/tweets", handler.GetAllTweets)
+	r.GET("/:username", handler.GetAllTweets)
 	r.DELETE("/tweets", handler.DeleteTweetsById)
 
 	return r
@@ -152,7 +152,24 @@ func (handler *handler) Create(c *gin.Context) {
 	tweet.UserName = userName.(string)
 	tweet.CreateTime = time.Now()
 
-	// TODO: Add the tweets in the database
+	// Fetch userId
+	var userId int64
+	err = handler.sql.QueryRow("SELECT id FROM users where username=$1", tweet.UserName).Scan(&userId)
+	if err != nil {
+		handler.logger.Errorf("the username doesn't exist: %v", err)
+		c.JSON(500, gin.H{"error": "cannot find the username"})
+		return
+	}
+
+	now := time.Now()
+
+	// Add the tweets in the database
+	_, err = handler.sql.Query("INSERT INTO tweets (user_id, content, created_at) VALUES($1, $2, $3)", userId, tweet.Tweet, now)
+	if err != nil {
+		handler.logger.Errorf("cannot insert the tweet into the database: %+v", err)
+		c.JSON(500, gin.H{"error": "failed to post!"})
+		return
+	}
 
 	bx, err := json.Marshal(tweet)
 	if err != nil {
@@ -164,6 +181,47 @@ func (handler *handler) Create(c *gin.Context) {
 
 }
 
+func (handler *handler) GetAllTweets(c *gin.Context) {
+	userName := c.Param("username")
+
+	// Fetch userId
+	var userId int64
+	err := handler.sql.QueryRow("SELECT id FROM users where username=$1", userName).Scan(&userId)
+	if err != nil {
+		handler.logger.Errorf("the username doesn't exist: %v", err)
+		c.JSON(500, gin.H{"error": "cannot find the username"})
+		return
+	}
+
+	var tweets models.GetAllTweets
+	var tweetId int64
+	var tweet, createdAt string
+	var likes, rts int64
+
+	rows, err := handler.sql.Query("SELECT id, content, created_at, likes, retweets FROM tweets where user_id=$1", userId)
+	if err != nil {
+		handler.logger.Errorf("cannot fetch tweets: %v", err)
+		c.JSON(404, gin.H{"error": "cannot find the tweets"})
+		return
+	}
+
+	for rows.Next() {
+		rows.Scan(&tweetId, &tweet, &createdAt, &likes, &rts)
+		twt := models.GetTweet{
+			Id:           tweetId,
+			Tweet:        tweet,
+			CreatedAt:    createdAt,
+			LikeCount:    likes,
+			RetweetCount: rts,
+		}
+		tweets.GetTweet = append(tweets.GetTweet, twt)
+
+	}
+
+	c.JSON(200, tweets)
+
+}
+
 func (handler *handler) Update(c *gin.Context) {
 
 }
@@ -172,10 +230,10 @@ func (handler *handler) GetById(c *gin.Context) {
 
 }
 
-func (handler *handler) GetAllTweets(c *gin.Context) {
+func (handler *handler) DeleteTweetsById(c *gin.Context) {
 
 }
 
-func (handler *handler) DeleteTweetsById(c *gin.Context) {
-
+func Add(a, b int) {
+	Add(a, b)
 }
