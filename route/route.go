@@ -33,10 +33,10 @@ func Route(handler *handler) *gin.Engine {
 	r.POST("/login", handler.loginUser)
 
 	r.POST("/create", middleware.AuthMiddleware(), handler.Create)
-	r.PUT("/update", handler.Update)
-	r.GET("/tweet/{id}", handler.GetById)
+	r.PUT("/tweet/:tweet_id", middleware.AuthMiddleware(), handler.Update)
+	r.GET("/tweet/:tweet_id", handler.GetById)
 	r.GET("/:username", handler.GetAllTweets)
-	r.DELETE("/tweets", handler.DeleteTweetsById)
+	r.DELETE("/tweet/:tweet_id", middleware.AuthMiddleware(), handler.DeleteTweetsById)
 
 	return r
 }
@@ -223,17 +223,53 @@ func (handler *handler) GetAllTweets(c *gin.Context) {
 }
 
 func (handler *handler) Update(c *gin.Context) {
+	tweetId := c.Param("tweet_id")
 
+	// Get the users tweet and parse to the Struct
+	var tweet models.Tweet
+
+	err := c.BindJSON(&tweet)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "json data is not correct"})
+		return
+	}
+
+	res, err := handler.sql.Exec("UPDATE tweets SET content=$1 WHERE id=$2", tweet.Tweet, tweetId)
+	if err != nil {
+		handler.logger.Errorf("the tweet doesn't exist: %v", err)
+		c.JSON(500, gin.H{"error": "cannot find the tweet"})
+		return
+	}
+	_ = res
+
+	c.JSON(200, tweet.Tweet)
 }
 
 func (handler *handler) GetById(c *gin.Context) {
+	tweetId := c.Param("tweet_id")
 
+	twt := models.GetTweet{}
+
+	err := handler.sql.QueryRow("SELECT id, content, created_at, likes, retweets FROM tweets where id=$1", tweetId).
+		Scan(&twt.Id, &twt.Tweet, &twt.CreatedAt, &twt.LikeCount, &twt.RetweetCount)
+	if err != nil {
+		handler.logger.Errorf("cannot fetch tweets: %v", err)
+		c.JSON(404, gin.H{"error": "cannot find the tweets"})
+		return
+	}
+
+	c.JSON(200, twt)
 }
 
 func (handler *handler) DeleteTweetsById(c *gin.Context) {
+	tweetId := c.Param("tweet_id")
 
-}
+	_, err := handler.sql.Exec("DELETE FROM tweets where id=$1", tweetId)
+	if err != nil {
+		handler.logger.Errorf("cannot fetch tweets: %v", err)
+		c.JSON(404, gin.H{"error": "cannot find the tweets"})
+		return
+	}
 
-func Add(a, b int) {
-	Add(a, b)
+	c.JSON(200, "Tweet successfully deleted")
 }
