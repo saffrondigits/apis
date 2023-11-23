@@ -1,4 +1,4 @@
-In Go (Golang), recursion is a programming concept where a function calls itself. This technique is used to solve problems that can be broken down into smaller, repetitive problems1.
+In Go (Golang), recursion is a programming concept where a function calls itself. This technique is used to solve problems that can be broken down into smaller, repetitive problems.
 
 Here’s an example of a simple recursive function in Go:
 
