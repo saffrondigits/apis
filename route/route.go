@@ -27,7 +27,7 @@ func NewHandler(db *sql.DB, log *logrus.Logger) *handler {
 func Route(handler *handler) *gin.Engine {
 	r := gin.Default()
 
-	r.GET("/ping", handler.ping)
+	r.GET("/ping/", handler.ping)
 
 	r.POST("/register", handler.registerUser)
 	r.POST("/login", handler.loginUser)
